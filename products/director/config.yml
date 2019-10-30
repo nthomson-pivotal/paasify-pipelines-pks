@@ -36,14 +36,14 @@ networks-configuration:
     {{end}}
   - name: pas
     subnets:
-    {{range $i, $a := (ds "data").pas_subnet_cidrs}}
+    {{range $i, $a := (ds "data").pks_subnet_cidrs}}
     - availability_zone_names:
       - {{index (ds "data").azs $i}}
-      cidr: {{index (ds "data").pas_subnet_cidrs $i}}
+      cidr: {{index (ds "data").pks_subnet_cidrs $i}}
       dns: 169.254.169.253
-      gateway: {{index (ds "data").pas_subnet_gateways $i}}
-      iaas_identifier: {{index (ds "data").pas_subnet_ids $i}}
-      reserved_ip_ranges: {{ $gateway := index (ds "data").pas_subnet_gateways $i }}{{$gateway}}-{{ $gateway_arr := split $gateway "." }}{{ index $gateway_arr 0 }}.{{ index $gateway_arr 1 }}.{{ index $gateway_arr 2 }}.{{ add (index $gateway_arr 3) 4 }}
+      gateway: {{index (ds "data").pks_subnet_gateways $i}}
+      iaas_identifier: {{index (ds "data").pks_subnet_ids $i}}
+      reserved_ip_ranges: {{ $gateway := index (ds "data").pks_subnet_gateways $i }}{{$gateway}}-{{ $gateway_arr := split $gateway "." }}{{ index $gateway_arr 0 }}.{{ index $gateway_arr 1 }}.{{ index $gateway_arr 2 }}.{{ add (index $gateway_arr 3) 4 }}
     {{end}}
   - name: services
     subnets:
