@@ -1,5 +1,33 @@
 product-name: pivotal-container-service
 product-properties:
+  .properties.pks_api_hostname:
+    value: {{ (ds "data").pks_api_endpoint }}
+  .pivotal-container-service.pks_tls:
+    value:
+        cert_pem: "{{ (ds "data").tls_cert}}\n{{ (ds "data").tls_cert_ca}}"
+        private_key_pem: "{{ (ds "data").tls_cert_key}}"
+  .properties.cloud_provider:
+    value: AWS
+  .properties.cloud_provider.aws.iam_instance_profile_master:
+    value: {{ (ds "data").pks_master_iam_instance_profile_name }}
+  .properties.cloud_provider.aws.iam_instance_profile_master:
+    value: {{ (ds "data").pks_worker_iam_instance_profile_name }}
+  .properties.oidc_selector:
+    value: disabled
+  .properties.telemetry_selector:
+    value: disabled
+  .properties.telemetry_installation_purpose_selector:
+    value: demo_or_poc
+  .properties.plan1_selector.active.master_az_placement:
+    value:
+      {{range (ds "data").azs}}
+      - {{.}}
+      {{end}}
+  .properties.plan1_selector.active.worker_az_placement:
+    value:
+      {{range (ds "data").azs}}
+      - {{.}}
+      {{end}}
 network-properties:
   network:
     name: pks
@@ -10,7 +38,7 @@ network-properties:
   singleton_availability_zone:
     name: {{index (ds "data").azs 0}}
 resource-config:
-  control:
+  pivotal-container-service:
     elb_names:
     {{range (ds "data").pks_api_target_groups}}
     - alb:{{.}}
