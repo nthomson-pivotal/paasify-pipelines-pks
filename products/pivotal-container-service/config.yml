@@ -10,7 +10,7 @@ product-properties:
     value: AWS
   .properties.cloud_provider.aws.iam_instance_profile_master:
     value: {{ (ds "data").pks_master_iam_instance_profile_name }}
-  .properties.cloud_provider.aws.iam_instance_profile_master:
+  .properties.cloud_provider.aws.iam_instance_profile_worker:
     value: {{ (ds "data").pks_worker_iam_instance_profile_name }}
   .properties.oidc_selector:
     value: disabled
