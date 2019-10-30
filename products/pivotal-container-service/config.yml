@@ -31,6 +31,8 @@ product-properties:
 network-properties:
   network:
     name: pks
+  service_network:
+    name: services
   other_availability_zones:
     {{range (ds "data").azs}}
     - name: {{.}}
