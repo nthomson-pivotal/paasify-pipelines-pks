@@ -40,15 +40,15 @@ resource "random_integer" "bucket" {
 }
 
 module "infra" {
-  source = "../paving-pas/aws/modules/infra"
+  source = "../paving-pks/aws/modules/infra"
 
   region             = var.region
   env_name           = var.env_name
   availability_zones = var.availability_zones
   vpc_cidr           = var.vpc_cidr
+  internetless       = var.internetless
 
-  internetless = var.internetless
-
+  hosted_zone = var.hosted_zone
   dns_suffix  = var.dns_suffix
   use_route53 = var.use_route53
 
@@ -56,7 +56,7 @@ module "infra" {
 }
 
 module "ops_manager" {
-  source = "../paving-pas/aws/modules/ops_manager"
+  source = "../paving-pks/aws/modules/ops_manager"
 
   subnet_id = local.ops_man_subnet_id
 
@@ -71,16 +71,18 @@ module "ops_manager" {
   dns_suffix               = var.dns_suffix
   zone_id                  = module.infra.zone_id
   use_route53              = var.use_route53
-  additional_iam_roles_arn = [module.pas.iam_pas_bucket_role_arn]
   bucket_suffix            = local.bucket_suffix
+  additional_iam_roles_arn = [module.pks.pks_worker_iam_role_arn, module.pks.pks_master_iam_role_arn]
+
+  iam_users = var.iam_users ? 1 : 0
 
   tags = local.actual_tags
 }
 
-module "pas_certs" {
-  source = "../paving-pas/aws/modules/certs"
+module "certs" {
+  source = "../paving-pks/aws/modules/certs"
 
-  subdomains = ["*.apps", "*.sys", "*.login.sys", "*.uaa.sys"]
+  subdomains = ["*.pks"]
   env_name   = var.env_name
   dns_suffix = var.dns_suffix
 
@@ -90,52 +92,26 @@ module "pas_certs" {
   ssl_ca_private_key = var.ssl_ca_private_key
 }
 
-module "isoseg_certs" {
-  source = "../paving-pas/aws/modules/certs"
+module "pks" {
+  source = "../paving-pks/aws/modules/pks"
 
-  subdomains    = ["*.iso"]
-  env_name      = var.env_name
-  dns_suffix    = var.dns_suffix
-  resource_name = "isoseg"
+  env_name                = var.env_name
+  region                  = var.region
+  availability_zones      = var.availability_zones
+  vpc_cidr                = var.vpc_cidr
+  vpc_id                  = module.infra.vpc_id
+  private_route_table_ids = module.infra.deployment_route_table_ids
+  public_subnet_ids       = module.infra.public_subnet_ids
 
-  ssl_cert           = var.isoseg_ssl_cert
-  ssl_private_key    = var.isoseg_ssl_private_key
-  ssl_ca_cert        = var.isoseg_ssl_ca_cert
-  ssl_ca_private_key = var.isoseg_ssl_ca_private_key
-}
-
-module "pas" {
-  source = "../paving-pas/aws/modules/pas"
-
-  env_name           = var.env_name
-  region             = var.region
-  availability_zones = var.availability_zones
-  vpc_cidr           = var.vpc_cidr
-  vpc_id             = module.infra.vpc_id
-  route_table_ids    = module.infra.deployment_route_table_ids
-  public_subnet_ids  = module.infra.public_subnet_ids
-  internetless       = var.internetless
-
-  bucket_suffix  = local.bucket_suffix
-  zone_id        = module.infra.zone_id
-  dns_suffix     = var.dns_suffix
-  use_route53    = var.use_route53
-  use_tcp_routes = var.use_tcp_routes
-  use_ssh_routes = var.use_ssh_routes
-
-  create_backup_pas_buckets    = var.create_backup_pas_buckets
-  create_versioned_pas_buckets = var.create_versioned_pas_buckets
-
-  ops_manager_iam_user_name = module.ops_manager.ops_manager_iam_user_name
-  iam_ops_manager_role_name = module.ops_manager.ops_manager_iam_role_name
-
-  create_isoseg_resources = var.create_isoseg_resources
+  zone_id     = module.infra.zone_id
+  dns_suffix  = var.dns_suffix
+  use_route53 = var.use_route53
 
   tags = local.actual_tags
 }
 
 module "rds" {
-  source = "../paving-pas/aws/modules/rds"
+  source = "../paving-pks/aws/modules/rds"
 
   rds_db_username    = var.rds_db_username
   rds_instance_class = var.rds_instance_class
@@ -149,6 +125,7 @@ module "rds" {
   availability_zones = var.availability_zones
   vpc_cidr           = var.vpc_cidr
   vpc_id             = module.infra.vpc_id
-  tags               = local.actual_tags
+
+  tags = local.actual_tags
 }
 
