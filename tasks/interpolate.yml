@@ -6,7 +6,7 @@ image_resource:
     repository: hairyhenderson/gomplate
     tag: alpine
 inputs:
-  - name: paasify-pipelines-pas
+  - name: paasify-pipelines-pks
   - name: terraform-state
   - name: templates
 outputs:
@@ -16,5 +16,5 @@ params:
   AWS_SECRET_ACCESS_KEY:
   TEMPLATE_PATH:
 run:
-  path: paasify-pipelines-pas/tasks/interpolate.sh
+  path: paasify-pipelines-pks/tasks/interpolate.sh
   

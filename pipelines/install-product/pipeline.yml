@@ -42,7 +42,7 @@ resources:
 - name: pipelines-source
   type: git
   source:
-    uri: https://github.com/nthomson-pivotal/paasify-pipelines-pas.git
+    uri: https://github.com/nthomson-pivotal/paasify-pipelines-pks.git
     branch: master
 
 - name: configuration-source
@@ -93,7 +93,7 @@ jobs:
   - task: interpolate-global
     file: pipelines-source/tasks/interpolate.yml
     input_mapping:
-      paasify-pipelines-pas: pipelines-source
+      paasify-pipelines-pks: pipelines-source
       templates: pipelines-source
       terraform-state: terraform-state
     output_mapping:
@@ -106,7 +106,7 @@ jobs:
   - task: interpolate-vars
     file: pipelines-source/tasks/interpolate.yml
     input_mapping:
-      paasify-pipelines-pas: pipelines-source
+      paasify-pipelines-pks: pipelines-source
       templates: pipelines-source
       terraform-state: terraform-state
     output_mapping:
@@ -169,7 +169,7 @@ jobs:
   - task: interpolate-global
     file: pipelines-source/tasks/interpolate.yml
     input_mapping:
-      paasify-pipelines-pas: pipelines-source
+      paasify-pipelines-pks: pipelines-source
       templates: pipelines-source
       terraform-state: terraform-state
     output_mapping:
@@ -180,7 +180,7 @@ jobs:
   - task: interpolate-config
     file: pipelines-source/tasks/interpolate.yml
     input_mapping:
-      paasify-pipelines-pas: pipelines-source
+      paasify-pipelines-pks: pipelines-source
       templates: pipelines-source
       terraform-state: terraform-state
     output_mapping:
@@ -220,7 +220,7 @@ jobs:
   - task: interpolate-global
     file: pipelines-source/tasks/interpolate.yml
     input_mapping:
-      paasify-pipelines-pas: pipelines-source
+      paasify-pipelines-pks: pipelines-source
       templates: pipelines-source
       terraform-state: terraform-state
     output_mapping:
