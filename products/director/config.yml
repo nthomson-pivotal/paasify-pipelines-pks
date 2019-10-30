@@ -34,7 +34,7 @@ networks-configuration:
       iaas_identifier: {{index (ds "data").infrastructure_subnet_ids $i}}
       reserved_ip_ranges:  {{ $gateway := index (ds "data").infrastructure_subnet_gateways $i }}{{$gateway}}-{{ $gateway_arr := split $gateway "." }}{{ index $gateway_arr 0 }}.{{ index $gateway_arr 1 }}.{{ index $gateway_arr 2 }}.{{ add (index $gateway_arr 3) 4 }}
     {{end}}
-  - name: pas
+  - name: pks
     subnets:
     {{range $i, $a := (ds "data").pks_subnet_cidrs}}
     - availability_zone_names:

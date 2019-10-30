@@ -2,7 +2,7 @@ product-name: pivotal-container-service
 product-properties:
 network-properties:
   network:
-    name: pas
+    name: pks
   other_availability_zones:
     {{range (ds "data").azs}}
     - name: {{.}}
