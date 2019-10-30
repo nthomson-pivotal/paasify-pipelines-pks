@@ -1,0 +1,182 @@
+---
+resource_types:
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+    tag: 0.12.9
+
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+
+- name: semver-config
+  type: docker-image
+  source:
+    repository: itstarting/semver-config-concourse-resource
+    tag: 1.0.0
+
+resources:
+- name: terraform-state
+  type: terraform
+  source:
+    env_name: ((env_name))
+    backend_type: s3
+    backend_config:
+      bucket: ((s3_artifact_bucket))
+      key: ((env_name))/terraform.tfstate
+      access_key: ((s3_access_key_id))
+      secret_key: ((s3_secret_access_key))
+    vars:
+      env_name: ((env_name))
+      dns_suffix: ((dns_suffix))
+      region: ((region))
+      ops_manager_ami: ""
+    env:
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+      AWS_DEFAULT_REGION: ((region))
+
+- name: pipelines-source
+  type: git
+  source:
+    uri: https://github.com/nthomson-pivotal/paasify-pipelines-pas.git
+    branch: master
+
+- name: configuration-source
+  type: git
+  source:
+    uri: ((configuration_source))
+    branch: master
+    private_key: ((git_private_key.private_key))
+
+- name: platform-automation
+  type: pivnet
+  source:
+    api_token: ((pivnet_token))
+    product_slug: platform-automation
+    product_version: "4.0.1"
+
+- name: vm-state
+  type: s3
+  source:
+    region_name: ((s3_region))
+    access_key_id: ((s3_access_key_id))
+    secret_access_key: ((s3_secret_access_key))
+    bucket: ((s3_artifact_bucket))
+    versioned_file: vm-state/((env_name))/state.yml
+    initial_version: "0"
+
+jobs:
+- name: delete-installation
+  serial: true
+  plan:
+  - aggregate:
+    - get: pipelines-source
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*tasks*"]
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*image*"]
+    - get: terraform-state
+  - task: interpolate-global
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: globals-interpolated
+    params:
+      TEMPLATE_PATH: vars
+      PIVNET_TOKEN: ((pivnet_token))
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+  - task: apply-director-changes
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-installation.yml
+    input_mapping:
+      env: globals-interpolated
+    params:
+      ENV_FILE: env.yml
+
+- name: delete-vm
+  serial: true
+  plan:
+  - aggregate:
+    - get: pipelines-source
+      passed: [delete-installation]
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*tasks*"]
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*image*"]
+    - get: vm-state
+    - get: terraform-state
+      passed: [delete-installation]
+  - task: interpolate-global
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: globals-interpolated
+    params:
+      TEMPLATE_PATH: vars
+      PIVNET_TOKEN: ((pivnet_token))
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+  - task: interpolate-vars
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: vars-interpolated
+    params:
+      TEMPLATE_PATH: products/opsman/vars
+      PIVNET_TOKEN: ((pivnet_token))
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+  - task: delete-vm
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/delete-vm.yml
+    input_mapping:
+      state: vm-state
+      config: pipelines-source
+      vars: vars-interpolated
+    params:
+      OPSMAN_CONFIG_FILE: products/opsman/config.yml
+      STATE_FILE: state.yml
+      VARS_FILES: vars/vars.yml
+
+- name: delete-terraform
+  serial: true
+  public: false
+  plan:
+    - get: pipelines-source
+    - get: configuration-source
+    - put: terraform-state
+      params:
+        env_name: ((env_name))
+        terraform_source: pipelines-source/terraform/aws
+        delete_on_failure: false
+        action: destroy
+        var_files:
+        - configuration-source/((env_name))/terraform.tfvars
+      get_params:
+          action: destroy

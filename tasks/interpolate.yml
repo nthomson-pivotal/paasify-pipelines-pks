@@ -1,0 +1,20 @@
+---
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: hairyhenderson/gomplate
+    tag: alpine
+inputs:
+  - name: paasify-pipelines-pas
+  - name: terraform-state
+  - name: templates
+outputs:
+  - name: interpolated-templates
+params:
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+  TEMPLATE_PATH:
+run:
+  path: paasify-pipelines-pas/tasks/interpolate.sh
+  

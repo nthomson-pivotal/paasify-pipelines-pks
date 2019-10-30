@@ -1,0 +1,20 @@
+opsman_username: {{ (ds "data").opsman_username }}
+
+opsman_password: {{ (ds "data").opsman_password }}
+
+decryption_password: {{ (ds "data").opsman_decryption_passphrase }}
+
+access_key_id: {{ env.Getenv "AWS_ACCESS_KEY_ID" }}
+secret_access_key: {{ env.Getenv "AWS_SECRET_ACCESS_KEY" }}
+region: {{ (ds "data").region }}
+vm_name: {{ (ds "data").env_name }}-ops-manager
+vpc_subnet_id: {{index (ds "data").public_subnet_ids 0}}
+security_group_id: {{ (ds "data").ops_manager_security_group_id }}
+key_pair_name: {{ (ds "data").ops_manager_ssh_public_key_name }}
+iam_instance_profile_name: {{ (ds "data").ops_manager_iam_instance_profile_name }}
+instance_type: t2.large
+# At least one IP address (public or private) needs to be assigned to the VM.
+public_ip: {{ (ds "data").ops_manager_public_ip }}
+private_ip: {{ (ds "data").ops_manager_private_ip }}
+
+opsman_dns: {{ (ds "data").ops_manager_dns }}

@@ -1,0 +1,3 @@
+pivnet_token: {{ env.Getenv "PIVNET_TOKEN" }}
+
+iaas: {{ (ds "data").iaas }}

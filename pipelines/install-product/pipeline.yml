@@ -1,0 +1,239 @@
+---
+resource_types:
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+    tag: 0.12.9
+
+- name: pivnet
+  type: docker-image
+  source:
+    repository: pivotalcf/pivnet-resource
+    tag: latest-final
+
+- name: semver-config
+  type: docker-image
+  source:
+    repository: itstarting/semver-config-concourse-resource
+    tag: 1.0.0
+
+resources:
+- name: terraform-state
+  type: terraform
+  source:
+    env_name: ((env_name))
+    backend_type: s3
+    backend_config:
+      bucket: ((s3_artifact_bucket))
+      key: ((env_name))/terraform.tfstate
+      access_key: ((s3_access_key_id))
+      secret_key: ((s3_secret_access_key))
+    vars:
+      env_name: ((env_name))
+      dns_suffix: ((dns_suffix))
+      region: ((region))
+      ops_manager_ami: ""
+    env:
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+      AWS_DEFAULT_REGION: ((region))
+
+- name: pipelines-source
+  type: git
+  source:
+    uri: https://github.com/nthomson-pivotal/paasify-pipelines-pas.git
+    branch: master
+
+- name: configuration-source
+  type: git
+  source:
+    uri: ((configuration_source))
+    branch: master
+    private_key: ((git_private_key.private_key))
+
+- name: product-config
+  type: semver-config
+  source:
+    driver: git
+    uri: ((configuration_source))
+    branch: master
+    private_key: ((git_private_key.private_key))
+    config_file: ((env_name))/products.yml
+    config_path: products.((product_slug))
+    version_path: products.((product_slug)).product-version
+    version_pattern: "m.n.p"
+
+- name: platform-automation
+  type: pivnet
+  source:
+    api_token: ((pivnet_token))
+    product_slug: platform-automation
+    product_version: "4.0.1"
+
+jobs:
+- name: install-tile
+  serial: true
+  plan:
+  - aggregate:
+    - get: pipelines-source
+    - get: product-config
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*tasks*"]
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*image*"]
+    - get: terraform-state
+    - get: configuration-source
+  - task: interpolate-global
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: globals-interpolated
+    params:
+      TEMPLATE_PATH: vars
+      PIVNET_TOKEN: ((pivnet_token))
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+  - task: interpolate-vars
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: vars-interpolated
+    params:
+      TEMPLATE_PATH: products/((product_slug))/vars
+  - task: download-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/download-product.yml
+    input_mapping:
+      config: product-config
+      vars: vars-interpolated
+      secrets: globals-interpolated
+    params:
+      CONFIG_FILE: semver-config.yaml
+      VARS_FILES: secrets/global.yml
+  - task: upload-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/upload-product.yml
+    input_mapping:
+      product: downloaded-product
+      env: globals-interpolated
+    params:
+      ENV_FILE: env.yml
+  - task: upload-stemcell
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/upload-stemcell.yml
+    input_mapping:
+      stemcell: downloaded-stemcell
+      env: globals-interpolated
+    params:
+      ENV_FILE: env.yml
+  - task: stage-product
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/stage-product.yml
+    input_mapping:
+      product: downloaded-product
+      env: globals-interpolated
+
+- name: configure-tile
+  serial: true
+  plan:
+  - aggregate:
+    - get: pipelines-source
+      #passed: [install-tile]
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*tasks*"]
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*image*"]
+    - get: terraform-state
+      passed: [install-tile]
+    - get: configuration-source
+      passed: [install-tile]
+  - task: interpolate-global
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: globals-interpolated
+    params:
+      TEMPLATE_PATH: vars
+      PIVNET_TOKEN: ((pivnet_token))
+  - task: interpolate-config
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: config-interpolated
+    params:
+      TEMPLATE_PATH: products/((product_slug))
+  - task: configure-tile
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/configure-product.yml
+    input_mapping:
+      config: config-interpolated
+      env: globals-interpolated
+    params:
+      CONFIG_FILE: config.yml
+      ENV_FILE: env.yml
+
+- name: apply-changes
+  serial: true
+  plan:
+  - aggregate:
+    - get: pipelines-source
+      passed: [configure-tile]
+    - get: platform-automation-tasks
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*tasks*"]
+    - get: platform-automation-image
+      resource: platform-automation
+      params:
+        unpack: true
+        globs: ["*image*"]
+    - get: terraform-state
+      passed: [configure-tile]
+    - get: configuration-source
+      passed: [configure-tile]
+  - task: interpolate-global
+    file: pipelines-source/tasks/interpolate.yml
+    input_mapping:
+      paasify-pipelines-pas: pipelines-source
+      templates: pipelines-source
+      terraform-state: terraform-state
+    output_mapping:
+      interpolated-templates: globals-interpolated
+    params:
+      TEMPLATE_PATH: vars
+      PIVNET_TOKEN: ((pivnet_token))
+      AWS_ACCESS_KEY_ID: ((admin_access_key_id))
+      AWS_SECRET_ACCESS_KEY: ((admin_secret_access_key))
+  - task: apply-changes
+    image: platform-automation-image
+    file: platform-automation-tasks/tasks/apply-changes.yml
+    input_mapping:
+      env: globals-interpolated
+    params:
+      ENV_FILE: env.yml
